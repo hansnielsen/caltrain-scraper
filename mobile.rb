@@ -1,52 +1,42 @@
 require "curb"
+require "cgi"
 require "nokogiri"
 
-class CaltrainMobile
+class CaltrainRealTime
   BaseURL = "http://www.caltrain.com/"
-  StationPath = "/schedules/realtime/stations.html"
 
   def self.get_departures(stations)
-    stuff = stations.map do |path, name|
-      {
-        :url => URI.join(BaseURL, path).to_s,
-        :post_fields => {
-          "__EVENTTARGET" => "",
-          "__CALLBACKID" => "ctl01",
-          "__CALLBACKPARAM" => "refreshStation=#{name}"
-        }
-      }
-    end
+    m = Curl::Multi.new
 
     departures = {}
-    Curl::Multi.post(stuff, {}, {:pipeline => true}) do |e|
-      path = URI(e.last_effective_url).path
-      departures[path] = process_departure(e.body)
+    stations.each do |name|
+      m.add(Curl::Easy.new(BaseURL) do |curl|
+        fields = {
+          "__EVENTTARGET" => "",
+          "__CALLBACKID" => "ctl09",
+          "__CALLBACKPARAM" => "refreshStation=#{name}"
+        }
+        curl.post_body = fields.map{|f,k| "#{CGI.escape(f)}=#{CGI.escape(k)}"}.join('&')
+        curl.on_success do |c|
+          departures[name] = process_departure(c.body)
+        end
+      end)
     end
+
+    m.perform
     departures
   end
 
-  def self.get_departure(path, name)
-    body = Curl.post("http://www.caltrain.com/" + path, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl01", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
+  def self.get_departure(name)
+    body = Curl.post(BaseURL, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
 
     process_departure(body)
   end
 
-  def self.get_station_names(paths)
-    urls = paths.map {|p| URI.join(BaseURL, p).to_s}
-    stations = {}
-    Curl::Multi.get(urls, {}, {:pipeline => true}) do |e|
-      path = URI(e.last_effective_url).path
-      name = /ipjstGetTrainInfo\('(?<name>[^']+)'\)/.match(e.body)[:name]
-      stations[path] = name
-    end
-    stations
-  end
+  def self.get_stations()
+    body = Curl.get(BaseURL).body
 
-  def self.get_stations(path=StationPath)
-    body = Curl.get(URI.join(BaseURL, path).to_s).body
-
-    paths = process_station_paths(body)
-    get_station_names(paths)
+    process_station_names(body)
   end
 
   private
@@ -60,10 +50,12 @@ class CaltrainMobile
     end
   end
 
-  def self.process_station_paths(body)
+  def self.process_station_names(body)
     xml = Nokogiri.HTML(body)
-    xml.xpath("//p/a").map do |s|
-      s["href"]
+    xml.xpath("//*[@id='ipf-st-ip-station']/option").map do |s|
+      s["value"]
+    end.reject do |n|
+      n =~ /\(/
     end
   end
 end
