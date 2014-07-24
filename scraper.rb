@@ -1,4 +1,5 @@
 require_relative "caltrain_realtime"
+require "sequel"
 
 def time_sanity_check(deps)
   actualtime = deps.first.last.last.last
@@ -14,7 +15,25 @@ def time_sanity_check(deps)
   puts "--- Times all look good"
 end
 
+def setup_db
+  db = Sequel.sqlite('caltrain.db')
+
+  db.create_table? :timepoints do
+    primary_key :id
+
+    String :train, :text => true
+    String :station, :text => true
+    String :type, :text => true
+    String :arrival, :text => true
+    String :time, :text => true
+  end
+
+  db
+end
+
 if __FILE__ == $0
+  db = setup_db
+
   stations = CaltrainRealtime.get_stations
 
   puts "got #{stations.size} stations"
@@ -30,8 +49,12 @@ if __FILE__ == $0
     puts "retrieving departures"
     d = CaltrainRealtime.get_departures(stations).select {|k,v| v.size > 0}
     time_sanity_check(d)
-    puts "got departures:"
-    puts d.inspect
+    timepoints = db[:timepoints]
+    d.each do |station, trains|
+      trains.each do |train, type, arr, time|
+        timepoints.insert(:train => train, :station => station, :type => type, :arrival => arr, :time => time)
+      end
+    end
   end
 
   puts "looping now"
