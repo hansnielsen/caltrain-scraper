@@ -2,17 +2,24 @@ require_relative "caltrain_realtime"
 require "sequel"
 
 def time_sanity_check(deps)
-  actualtime = deps.first.last.last.last
+  # in case there are no trains
+  begin
+    actualtime = deps.first.last.last.last
+  rescue
+    return true
+  end
   puts "--- Times should be '#{actualtime}'"
   deps.map do |station, trains|
     trains.each do |train, type, arr, time|
       if time != actualtime
         puts "--- Uhoh! Got departures with an inconsistent time"
-        return
+        return false
       end
     end
   end
+
   puts "--- Times all look good"
+  true
 end
 
 def setup_db
