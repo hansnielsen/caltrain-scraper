@@ -1,6 +1,7 @@
 require "curb"
 require "cgi"
 require "nokogiri"
+require "timers"
 
 class CaltrainRealtime
   BaseURL = "http://www.caltrain.com/"
@@ -28,9 +29,25 @@ class CaltrainRealtime
   end
 
   def self.get_departure(name)
-    body = Curl.post(BaseURL, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
-
+    body = make_departure_request(name)
     process_departure(body)
+  end
+
+  def self.get_start_of_minute()
+    # make requests 5 seconds apart until the minute changes
+    time = nil
+
+    t = Timers::Group.new
+    t.every(5) do
+      body = make_departure_request("San Francisco")
+      new_time = extract_time(body)
+      if new_time != time && time != nil
+        return Time.now
+      end
+      time = new_time
+    end
+
+    loop { t.wait }
   end
 
   def self.get_stations()
@@ -41,8 +58,13 @@ class CaltrainRealtime
 
   private
 
+  def self.make_departure_request(name)
+    Curl.post(BaseURL, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
+  end
+
+
   def self.process_departure(body)
-    time = /<IRONPOINT>TIME<\/IRONPOINT>as of&nbsp;(?<time>[^<]+)<IRONPOINT>TIME<\/IRONPOINT>/.match(body)[:time]
+    time = extract_time(body)
     xml = Nokogiri.HTML(body)
     xml.xpath("//table/tr[@class='ipf-st-ip-trains-subtable-tr']").map do |t|
       arr = t.children.map &:text
@@ -57,5 +79,9 @@ class CaltrainRealtime
     end.reject do |n|
       n =~ /\(/
     end
+  end
+
+  def self.extract_time(body)
+    /<IRONPOINT>TIME<\/IRONPOINT>as of&nbsp;(?<time>[^<]+)<IRONPOINT>TIME<\/IRONPOINT>/.match(body)[:time]
   end
 end
