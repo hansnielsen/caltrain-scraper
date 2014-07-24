@@ -2,7 +2,7 @@ require "curb"
 require "cgi"
 require "nokogiri"
 
-class CaltrainRealTime
+class CaltrainRealtime
   BaseURL = "http://www.caltrain.com/"
 
   def self.get_departures(stations)
