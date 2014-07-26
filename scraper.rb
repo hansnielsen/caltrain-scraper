@@ -25,6 +25,11 @@ end
 def setup_db
   db = Sequel.sqlite('caltrain.db')
 
+  db.create_table? :readings do
+    primary_key :id
+    DateTime :created_at
+  end
+
   db.create_table? :stations do
     primary_key :id
     String :name, :text => true
@@ -42,12 +47,12 @@ def setup_db
 
   db.create_table? :timepoints do
     primary_key :id
-
     foreign_key :train_id, :trains
     foreign_key :station_id, :stations
     foreign_key :type_id, :types
     String :arrival, :text => true
     String :time, :text => true
+    foreign_key :reading_id, :readings
   end
 
   db
@@ -58,13 +63,16 @@ def do_scrape(stations, db)
   d = CaltrainRealtime.get_departures(stations).select {|k,v| v.size > 0}
   time_sanity_check(d)
 
+  reading = Reading.create(:created_at => Time.now)
+
   d.each do |station, trains|
     trains.each do |train, type, arr, time|
       Timepoint.create(:train => Train.find_or_create(:name => train),
                        :station => Station.find_or_create(:name => station),
                        :type => Type.find_or_create(:name => type),
                        :arrival => arr,
-                       :time => time)
+                       :time => time,
+                       :reading => reading)
     end
   end
 end
@@ -72,13 +80,27 @@ end
 if __FILE__ == $0
   db = setup_db
 
-  class Station < Sequel::Model; end
-  class Train < Sequel::Model; end
-  class Type < Sequel::Model; end
+  class Reading < Sequel::Model
+    one_to_many :timepoint
+  end
+
+  class Station < Sequel::Model
+    one_to_many :timepoint
+  end
+
+  class Train < Sequel::Model
+    one_to_many :timepoint
+  end
+
+  class Type < Sequel::Model
+    one_to_many :timepoint
+  end
+
   class Timepoint < Sequel::Model
     many_to_one :train
     many_to_one :station
     many_to_one :type
+    many_to_one :reading
   end
 
   stations = CaltrainRealtime.get_stations
