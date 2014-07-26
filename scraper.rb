@@ -25,12 +25,27 @@ end
 def setup_db
   db = Sequel.sqlite('caltrain.db')
 
+  db.create_table? :stations do
+    primary_key :id
+    String :name, :text => true
+  end
+
+  db.create_table? :trains do
+    primary_key :id
+    String :name, :text => true
+  end
+
+  db.create_table? :types do
+    primary_key :id
+    String :name, :text => true
+  end
+
   db.create_table? :timepoints do
     primary_key :id
 
-    String :train, :text => true
-    String :station, :text => true
-    String :type, :text => true
+    foreign_key :train_id, :trains
+    foreign_key :station_id, :stations
+    foreign_key :type_id, :types
     String :arrival, :text => true
     String :time, :text => true
   end
@@ -38,8 +53,33 @@ def setup_db
   db
 end
 
+def do_scrape(stations, db)
+  puts "retrieving departures"
+  d = CaltrainRealtime.get_departures(stations).select {|k,v| v.size > 0}
+  time_sanity_check(d)
+
+  d.each do |station, trains|
+    trains.each do |train, type, arr, time|
+      Timepoint.create(:train => Train.find_or_create(:name => train),
+                       :station => Station.find_or_create(:name => station),
+                       :type => Type.find_or_create(:name => type),
+                       :arrival => arr,
+                       :time => time)
+    end
+  end
+end
+
 if __FILE__ == $0
   db = setup_db
+
+  class Station < Sequel::Model; end
+  class Train < Sequel::Model; end
+  class Type < Sequel::Model; end
+  class Timepoint < Sequel::Model
+    many_to_one :train
+    many_to_one :station
+    many_to_one :type
+  end
 
   stations = CaltrainRealtime.get_stations
 
@@ -53,15 +93,7 @@ if __FILE__ == $0
 
   t = Timers::Group.new
   t.every(60) do
-    puts "retrieving departures"
-    d = CaltrainRealtime.get_departures(stations).select {|k,v| v.size > 0}
-    time_sanity_check(d)
-    timepoints = db[:timepoints]
-    d.each do |station, trains|
-      trains.each do |train, type, arr, time|
-        timepoints.insert(:train => train, :station => station, :type => type, :arrival => arr, :time => time)
-      end
-    end
+    do_scrape(stations, db)
   end
 
   puts "looping now"
