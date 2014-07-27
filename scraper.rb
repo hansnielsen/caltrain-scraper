@@ -3,8 +3,9 @@ require "sequel"
 require "time"
 
 def convert_times(time)
-  d = DateTime.parse(time)
   now = DateTime.now
+  # offset crap is to fix up time zones
+  d = DateTime.parse(time).new_offset(now.offset) - now.offset
 
   diff = (d - now).to_f
 
