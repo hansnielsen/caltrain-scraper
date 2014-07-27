@@ -87,6 +87,8 @@ def setup_db
 end
 
 def do_scrape(stations, db)
+  puts "doing scrape at #{Time.now}"
+
   d = CaltrainRealtime.get_departures(stations).select {|k,v| v.size > 0}
 
   # when there are no trains
@@ -117,6 +119,7 @@ def do_scrape(stations, db)
 
     Reading.create(:created_at => DateTime.now, :raw => d.inspect)
   end
+  puts "scrape complete"
 end
 
 if __FILE__ == $0
@@ -152,7 +155,6 @@ if __FILE__ == $0
     puts e.backtrace.join("\n")
     exit(0)
   end
-
 
   # use fact that it returns immediately at the start of the minute
   # then sleep for about half a minute, and start the scraping
