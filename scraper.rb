@@ -3,14 +3,29 @@ require "sequel"
 require "time"
 
 def convert_times(time)
-  # XXX note that this doesn't work right around midnight
-  DateTime.parse(time)
+  d = DateTime.parse(time)
+  now = DateTime.now
+
+  diff = (d - now).to_f
+
+  # if it's more than 12 hours ago or 12 hours from now, adjust
+  if diff > 0.5
+    d = d.prev
+  elsif diff < -0.5
+    d = d.next
+  end
+
+  if (d - now).abs > 0.5
+    raise "tried to fix time #{time} at #{now} but got weird value #{d}"
+  end
+
+  d
 end
 
 def parse_arrival_time(reading_time, arr)
-  m = /\A(\d+) min./.match(arr)
+  m = /\A(\d+) min\.\z/.match(arr)
 
-  return nil if m.nil?
+  raise "unable to parse arrival time '#{arr}'" if m.nil?
 
   reading_time + Rational(m[1].to_i, 1440)
 end
@@ -22,12 +37,11 @@ def parse_scraped_times(deps)
   rescue
     return nil
   end
-  puts "--- Times should be '#{actual_time}'"
+
   deps.map do |station, trains|
     trains.each do |train, type, arr, time|
       if time != actual_time
-        puts "--- Uhoh! Got departures with an inconsistent time"
-        return false
+        raise "inconsistent times in response: '#{time}' vs '#{actual_time}'"
       end
     end
   end
@@ -73,29 +87,35 @@ def setup_db
 end
 
 def do_scrape(stations, db)
-  puts "retrieving departures"
   d = CaltrainRealtime.get_departures(stations).select {|k,v| v.size > 0}
-  reading_time = parse_scraped_times(d)
 
-  if reading_time == false
-    reading = Reading.create(:created_at => DateTime.now, :raw => d.inspect)
-    return
-  elsif reading_time.nil?
+  # when there are no trains
+  if d.size < 1
     reading = Reading.create(:created_at => DateTime.now)
     return
   end
 
-  reading = Reading.create(:created_at => DateTime.now, :time => reading_time)
+  begin
+    db.transaction do
+      reading_time = parse_scraped_times(d)
+      reading = Reading.create(:created_at => DateTime.now, :time => reading_time)
 
-  d.each do |station, trains|
-    trains.each do |train, type, arr, time|
-      arrival_time = parse_arrival_time(reading_time, arr)
-      Timepoint.create(:train => Train.find_or_create(:name => train),
-                       :station => Station.find_or_create(:name => station),
-                       :type => Type.find_or_create(:name => type),
-                       :arrival => arrival_time,
-                       :reading => reading)
+      d.each do |station, trains|
+        trains.each do |train, type, arr, time|
+          arrival_time = parse_arrival_time(reading_time, arr)
+          Timepoint.create(:train => Train.find_or_create(:name => train),
+                           :station => Station.find_or_create(:name => station),
+                           :type => Type.find_or_create(:name => type),
+                           :arrival => arrival_time,
+                           :reading => reading)
+        end
+      end
     end
+  rescue => e
+    puts "oh no! #{e}"
+    puts e.backtrace.join("\n")
+
+    Reading.create(:created_at => DateTime.now, :raw => d.inspect)
   end
 end
 
@@ -125,9 +145,14 @@ if __FILE__ == $0
     many_to_one :reading
   end
 
-  stations = CaltrainRealtime.get_stations
+  begin
+    stations = CaltrainRealtime.get_stations
+  rescue => e
+    puts "unable to get stations: #{e}"
+    puts e.backtrace.join("\n")
+    exit(0)
+  end
 
-  puts "got #{stations.size} stations"
 
   # use fact that it returns immediately at the start of the minute
   # then sleep for about half a minute, and start the scraping
