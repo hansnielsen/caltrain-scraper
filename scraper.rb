@@ -89,20 +89,24 @@ end
 def do_scrape(stations, db)
   puts "doing scrape at #{Time.now}"
 
-  d = CaltrainRealtime.get_departures(stations).select {|k,v| v.size > 0}
-
-  # when there are no trains
-  if d.size < 1
-    reading = Reading.create(:created_at => DateTime.now)
-    return
-  end
+  bodies = CaltrainRealtime.get_departures(stations)
 
   begin
+    departures = Hash[bodies.map do |station, body|
+      [station, CaltrainRealtime.process_departure(body)]
+    end.reject {|s,d| d.size == 0}]
+
+    # when there are no trains
+    if departures.size < 1
+      reading = Reading.create(:created_at => DateTime.now)
+      return
+    end
+
     db.transaction do
-      reading_time = parse_scraped_times(d)
+      reading_time = parse_scraped_times(departures)
       reading = Reading.create(:created_at => DateTime.now, :time => reading_time)
 
-      d.each do |station, trains|
+      departures.each do |station, trains|
         trains.each do |train, type, arr, time|
           arrival_time = parse_arrival_time(reading_time, arr)
           Timepoint.create(:train => Train.find_or_create(:name => train),
@@ -117,7 +121,7 @@ def do_scrape(stations, db)
     puts "oh no! #{e}"
     puts e.backtrace.join("\n")
 
-    Reading.create(:created_at => DateTime.now, :raw => d.inspect)
+    Reading.create(:created_at => DateTime.now, :raw => bodies.inspect)
   end
   puts "scrape complete"
 end

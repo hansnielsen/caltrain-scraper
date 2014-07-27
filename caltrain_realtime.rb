@@ -19,7 +19,7 @@ class CaltrainRealtime
         }
         curl.post_body = fields.map{|f,k| "#{CGI.escape(f)}=#{CGI.escape(k)}"}.join('&')
         curl.on_success do |c|
-          departures[name] = process_departure(c.body)
+          departures[name] = c.body
         end
       end)
     end
@@ -55,8 +55,6 @@ class CaltrainRealtime
 
     process_station_names(body)
   end
-
-  private
 
   def self.make_departure_request(name)
     Curl.post(BaseURL, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
