@@ -171,7 +171,7 @@ if __FILE__ == $0
     do_scrape(stations, db)
   end
 
-  puts "looping now"
-
+  puts "starting scrape"
+  do_scrape(stations, db)
   loop { t.wait }
 end
