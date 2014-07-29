@@ -5,6 +5,7 @@ require "timers"
 
 class CaltrainRealtime
   BaseURL = "http://www.caltrain.com/"
+  Retries = 3
 
   def self.get_departures(stations)
     m = Curl::Multi.new
@@ -25,6 +26,14 @@ class CaltrainRealtime
     end
 
     m.perform
+
+    departures.keys.each do |name|
+      if error_response?(departures[name])
+        puts "got an error for #{name}, making special request"
+        departures[name] = make_departure_request(name)
+      end
+    end
+
     departures
   end
 
@@ -57,7 +66,18 @@ class CaltrainRealtime
   end
 
   def self.make_departure_request(name)
-    Curl.post(BaseURL, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
+    retries = Retries
+    begin
+      body = Curl.post(BaseURL, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
+      retries -= 1
+    end while error_response?(body) && retries > 0
+
+    if retries < Retries - 1
+      puts "had to retry #{Retries - retries - 1} times for #{name}"
+    end
+
+    # note that we can still return an error response here
+    body
   end
 
 
@@ -81,5 +101,9 @@ class CaltrainRealtime
 
   def self.extract_time(body)
     /<IRONPOINT>TIME<\/IRONPOINT>as of&nbsp;(?<time>[^<]+)<IRONPOINT>TIME<\/IRONPOINT>/.match(body)[:time]
+  end
+
+  def self.error_response?(body)
+    body.include?("An error occurred contacting the web service")
   end
 end
