@@ -11,9 +11,9 @@ def convert_times(time)
 
   # if it's more than 12 hours ago or 12 hours from now, adjust
   if diff > 0.5
-    d = d.prev
+    d = d.prev_day
   elsif diff < -0.5
-    d = d.next
+    d = d.next_day
   end
 
   if (d - now).abs > 0.5
