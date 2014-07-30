@@ -90,9 +90,9 @@ end
 def do_scrape(stations, db)
   puts "doing scrape at #{Time.now}"
 
-  bodies = CaltrainRealtime.get_departures(stations)
-
   begin
+    bodies = CaltrainRealtime.get_departures(stations)
+
     departures = Hash[bodies.map do |station, body|
       [station, CaltrainRealtime.process_departure(body)]
     end.reject {|s,d| d.size == 0}]
