@@ -130,6 +130,8 @@ def do_scrape(stations, db)
 end
 
 if __FILE__ == $0
+  $stdout.sync = true
+
   db = setup_db
 
   class Reading < Sequel::Model
