@@ -105,7 +105,9 @@ def do_scrape(stations, db)
 
     db.transaction do
       reading_time = parse_scraped_times(departures)
-      reading = Reading.create(:created_at => DateTime.now, :time => reading_time)
+      created_at = DateTime.now
+      puts "got reading time #{reading_time} and creation time #{created_at}"
+      reading = Reading.create(:created_at => created_at, :time => reading_time)
 
       departures.each do |station, trains|
         trains.each do |train, type, arr, time|
@@ -165,7 +167,7 @@ if __FILE__ == $0
   # then sleep for about half a minute, and start the scraping
   CaltrainRealtime.get_start_of_minute
   puts "got start of minute, waiting a bit"
-  sleep 15
+  sleep 10
 
   t = Timers::Group.new
   t.every(60) do

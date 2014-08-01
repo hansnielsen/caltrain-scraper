@@ -8,6 +8,8 @@ class CaltrainRealtime
   Retries = 3
 
   def self.get_departures(stations)
+    t = []
+    t << Time.now
     m = Curl::Multi.new
 
     departures = {}
@@ -22,10 +24,12 @@ class CaltrainRealtime
         curl.on_success do |c|
           departures[name] = c.body
         end
+        curl.timeout = 10
       end)
     end
 
     m.perform
+    t << Time.now
 
     departures.keys.each do |name|
       if error_response?(departures[name])
@@ -33,6 +37,9 @@ class CaltrainRealtime
         departures[name] = make_departure_request(name)
       end
     end
+    t << Time.now
+
+    puts "scrape times: " + t.join(" -- ")
 
     departures
   end
@@ -68,6 +75,7 @@ class CaltrainRealtime
   def self.make_departure_request(name)
     retries = Retries
     begin
+      # XXX no timeout here, but hoping that's ok
       body = Curl.post(BaseURL, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
       retries -= 1
     end while error_response?(body) && retries > 0
