@@ -78,8 +78,12 @@ class CaltrainRealtime
   def self.make_departure_request(name)
     retries = Retries
     begin
-      # XXX no timeout here, but hoping that's ok
-      body = Curl.post(BaseURL, {"__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}"}).body
+      c = Curl::Easy.new(BaseURL)
+      c.timeout = 5
+      c.post_body = Curl.postalize("__EVENTTARGET" => "", "__CALLBACKID" => "ctl09", "__CALLBACKPARAM" => "refreshStation=#{name}")
+      c.post
+      body = c.body_str
+
       retries -= 1
     end while error_response?(body) && retries > 0
 
