@@ -88,10 +88,10 @@ def setup_db
 end
 
 def do_scrape(stations, db)
-  puts "doing scrape at #{Time.now}"
-
   begin
+    puts "doing scrape at #{Time.now}"
     bodies = CaltrainRealtime.get_departures(stations)
+    puts "finished retrieval at #{Time.now}"
 
     departures = Hash[bodies.map do |station, body|
       [station, CaltrainRealtime.process_departure(body)]

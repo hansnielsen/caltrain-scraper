@@ -42,7 +42,7 @@ class CaltrainRealtime
     end
     t << Time.now
 
-    puts "scrape times: " + t.join(" -- ")
+    puts "scrape times: request: %2.2fs retries: %2.2fs" % [t[1] - t[0], t[2] - t[1]]
 
     departures
   end
