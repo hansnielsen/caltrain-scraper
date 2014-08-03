@@ -58,6 +58,7 @@ def setup_db
     DateTime :created_at
     DateTime :time
     String :raw, :text => true
+    String :reason, :text => true
   end
 
   db.create_table? :stations do
@@ -99,7 +100,10 @@ def do_scrape(stations, db)
 
     # when there are no trains
     if departures.size < 1
-      reading = Reading.create(:created_at => DateTime.now)
+      # XXX Do I really want to save this data?
+      # It might be useful if there is some weird thing in the middle of
+      # the day and there are no trains.
+      reading = Reading.create(:created_at => DateTime.now, :raw => bodies.inspect, :reason => "notrains")
       return
     end
 
@@ -107,7 +111,7 @@ def do_scrape(stations, db)
       reading_time = parse_scraped_times(departures)
       created_at = DateTime.now
       puts "got reading time #{reading_time} and creation time #{created_at}"
-      reading = Reading.create(:created_at => created_at, :time => reading_time)
+      reading = Reading.create(:created_at => created_at, :time => reading_time, :reason => "success")
 
       departures.each do |station, trains|
         trains.each do |train, type, arr, time|
@@ -124,7 +128,7 @@ def do_scrape(stations, db)
     puts "oh no! #{e}"
     puts e.backtrace.join("\n")
 
-    Reading.create(:created_at => DateTime.now, :raw => bodies.inspect)
+    Reading.create(:created_at => DateTime.now, :raw => bodies.inspect, :reason => "exception")
   end
   puts "scrape complete"
 end
