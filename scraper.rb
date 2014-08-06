@@ -187,6 +187,14 @@ if __FILE__ == $0
     exit(0)
   end
 
+  if !production?
+    puts "doing normal scrape"
+    do_scrape(stations, db)
+    puts "doing scrape with no trains"
+    do_scrape(["Stanford Stadium"], db)
+    exit(0)
+  end
+
   # use fact that it returns immediately at the start of the minute
   # then sleep for about half a minute, and start the scraping
   CaltrainRealtime.get_start_of_minute
