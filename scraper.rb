@@ -115,13 +115,15 @@ def do_scrape(stations, db)
     departures = Hash[bodies.map do |station, body|
       [station, CaltrainRealtime.process_departure(body)]
     end.reject {|s,d| d.size == 0}]
+    blank = stations - departures.map {|s,t| s}
 
     # when there are no trains
     if departures.size < 1
-      # XXX Do I really want to save this data?
-      # It might be useful if there is some weird thing in the middle of
-      # the day and there are no trains.
-      reading = Reading.create(:created_at => DateTime.now, :raw => bodies.inspect, :reason => "notrains")
+      db.transaction do
+        reading = Reading.create(:created_at => DateTime.now, :raw => bodies.inspect)
+        Detail.create(:reading => reading,
+                      :reason => "notrains")
+      end
       return
     end
 
@@ -129,7 +131,7 @@ def do_scrape(stations, db)
       reading_time = parse_scraped_times(departures)
       created_at = DateTime.now
       puts "got reading time #{reading_time} and creation time #{created_at}"
-      reading = Reading.create(:created_at => created_at, :time => reading_time, :reason => "success")
+      reading = Reading.create(:created_at => created_at, :time => reading_time)
 
       departures.each do |station, trains|
         trains.each do |train, type, arr, time|
@@ -141,12 +143,19 @@ def do_scrape(stations, db)
                            :reading => reading)
         end
       end
+
+      Detail.create(:reading => reading,
+                    :reason => "success",
+                    :blank_stations => blank.join(","))
     end
   rescue => e
     puts "oh no! #{e}"
     puts e.backtrace.join("\n")
 
-    Reading.create(:created_at => DateTime.now, :raw => bodies.inspect, :reason => "exception")
+    reading = Reading.create(:created_at => DateTime.now, :raw => bodies.inspect)
+    Detail.create(:reading => reading,
+                  :reason => "exception",
+                  :text => e.backtrace.join("\n"))
   end
   puts "scrape complete"
 end
@@ -158,6 +167,11 @@ if __FILE__ == $0
 
   class Reading < Sequel::Model
     one_to_many :timepoint
+    one_to_one :detail
+  end
+
+  class Detail < Sequel::Model
+    many_to_one :reading
   end
 
   class Station < Sequel::Model
