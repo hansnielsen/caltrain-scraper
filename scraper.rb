@@ -2,6 +2,10 @@ require_relative "caltrain_realtime"
 require "sequel"
 require "time"
 
+def production?
+  ENV["SCRAPER_ENV"] == "production"
+end
+
 def convert_times(time)
   now = DateTime.now
   # offset crap is to fix up time zones
@@ -51,7 +55,11 @@ def parse_scraped_times(deps)
 end
 
 def setup_db
-  db = Sequel.sqlite('caltrain.db')
+  db = if production?
+    Sequel.sqlite('caltrain.db')
+  else
+    Sequel.sqlite('caltrain-test.db')
+  end
 
   db.create_table? :readings do
     primary_key :id
