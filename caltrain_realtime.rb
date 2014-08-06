@@ -35,7 +35,7 @@ class CaltrainRealtime
       if error_response?(departures[name])
         puts "got an error for #{name}, making special request"
         departures[name] = make_departure_request(name)
-      elsif !departures.include?(name)
+      elsif !departures.include?(name) || departures[name] == ""
         puts "didn't get a response for #{name}, making special request"
         departures[name] = make_departure_request(name)
       end

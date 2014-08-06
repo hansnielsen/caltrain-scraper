@@ -66,7 +66,17 @@ def setup_db
     DateTime :created_at
     DateTime :time
     String :raw, :text => true
+  end
+
+  db.create_table? :details do
+    primary_key :id
+    foreign_key :reading_id, :readings
     String :reason, :text => true
+    String :request_time, :text => true
+    String :retry_time, :text => true
+    String :blank_stations, :text => true
+    String :failed_stations, :text => true
+    String :text, :text => true
   end
 
   db.create_table? :stations do
