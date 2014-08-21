@@ -1,0 +1,17 @@
+Scraper libraries / utility for Caltrain and 511 real-time departure data.
+
+Runs on Ruby 2.0.0, and probably anything 1.9.3 or later.
+Needs the following gems:
+  nokogiri
+  sequel (Caltrain only)
+  curb (Caltrain only)
+  timers (Caltrain only)
+  rest_client (511 only)
+
+Usage: "ruby ./scraper.rb"
+
+Set SCRAPER_ENV="production" to run in scraper mode.
+Otherwise, it'll run two quick scrapes and quit.
+
+KNOWN ISSUES:
+- Ruby interpreter crashes after it's been running for several days
